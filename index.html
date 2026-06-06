@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Web AR - Visualisasi 3D</title>
+    
+    <!-- AR.js (A-Frame version) -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    
+    <!-- Three.js & GLTF Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+        }
+        
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loader {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: #fff;
+            margin-top: 20px;
+            font-size: 16px;
+            letter-spacing: 2px;
+        }
+        
+        .loading-subtext {
+            color: #888;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+        
+        /* UI Overlay */
+        #ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        /* Header */
+        .ar-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .ar-title {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .ar-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.5);
+            padding: 6px 12px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff4444;
+            transition: background 0.3s;
+        }
+        
+        .status-dot.active {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
+        }
+        
+        .status-text {
+            color: #fff;
+            font-size: 12px;
+        }
+        
+        /* Marker Guide */
+        .marker-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            opacity: 0.8;
+            transition: opacity 0.5s;
+        }
+        
+        .marker-guide.hidden {
+            opacity: 0;
+        }
+        
+        .marker-frame {
+            width: 200px;
+            height: 200px;
+            border: 2px dashed rgba(255,255,255,0.5);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+        }
+        
+        .marker-icon {
+            width: 80px;
+            height: 80px;
+            opacity: 0.5;
+        }
+        
+        .guide-text {
+            color: #fff;
+            font-size: 14px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        .guide-subtext {
+            color: #aaa;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        /* Controls */
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+        }
+        
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .control-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+        
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Info Panel */
+        .info-panel {
+            position: absolute;
+            bottom: 100px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(15px);
+            border-radius: 15px;
+            padding: 15px 20px;
+            color: #fff;
+            transform: translateY(150%);
+            transition: transform 0.4s ease;
+            pointer-events: auto;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .info-panel.show {
+            transform: translateY(0);
+        }
+        
+        .info-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #00d4ff;
+        }
+        
+        .info-desc {
+            font-size: 13px;
+            color: #ccc;
+            line-height: 1.5;
+        }
+        
+        /* Screenshot Flash */
+        .flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 1000;
+            transition: opacity 0.1s;
+        }
+        
+        .flash.active {
+            opacity: 1;
+        }
+        
+        /* Responsive */
+        @media (max-width: 480px) {
+            .ar-title {
+                font-size: 14px;
+            }
+            
+            .marker-frame {
+                width: 150px;
+                height: 150px;
+            }
+            
+            .control-btn {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loader"></div>
+        <div class="loading-text">MEMUAT APLIKASI AR</div>
+        <div class="loading-subtext">Mempersiapkan kamera dan model 3D...</div>
+    </div>
+
+    <!-- UI Overlay -->
+    <div id="ui-overlay">
+        <!-- Header -->
+        <div class="ar-header">
+            <div class="ar-title">🔮 Web AR 3D</div>
+            <div class="ar-status">
+                <div class="status-dot" id="status-dot"></div>
+                <span class="status-text" id="status-text">Mencari Marker...</span>
+            </div>
+        </div>
+
+        <!-- Marker Guide -->
+        <div class="marker-guide" id="marker-guide">
+            <div class="marker-frame">
+                <svg class="marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18M9 21V9"/>
+                    <circle cx="12" cy="12" r="2"/>
+                </svg>
+            </div>
+            <div class="guide-text">Arahkan kamera ke Marker Hiro</div>
+            <div class="guide-subtext">Marker akan terdeteksi secara otomatis</div>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="info-panel" id="info-panel">
+            <div class="info-title" id="info-title">Model 3D</div>
+            <div class="info-desc" id="info-desc">Objek 3D telah muncul! Anda dapat melihat dari berbagai sudut.</div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="control-btn" onclick="toggleInfo()" title="Info">ℹ️</button>
+            <button class="control-btn" onclick="resetModel()" title="Reset">🔄</button>
+            <button class="control-btn" onclick="takeScreenshot()" title="Screenshot">📷</button>
+            <button class="control-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+        </div>
+    </div>
+
+    <!-- Flash Effect -->
+    <div class="flash" id="flash"></div>
+
+    <!-- AR Scene -->
+    <a-scene 
+        embedded 
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+        renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true;"
+        vr-mode-ui="enabled: false">
+        
+        <!-- Assets -->
+        <a-assets>
+            <a-asset-item id="model-glb" src="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF-Binary/Duck.glb"></a-asset-item>
+        </a-assets>
+
+        <!-- Marker Hiro -->
+        <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="5" smoothTolerance="0.01" smoothThreshold="2">
+            <!-- Container untuk model 3D -->
+            <a-entity id="model-container" position="0 0 0" rotation="0 0 0" scale="0.5 0.5 0.5">
+                <!-- Model GLB akan dimuat di sini -->
+                <a-entity gltf-model="#model-glb" id="ar-model"></a-entity>
+            </a-entity>
+            
+            <!-- Shadow plane -->
+            <a-plane position="0 0 0" rotation="-90 0 0" width="2" height="2" 
+                     color="#000" opacity="0.3" shadow="receive: true"></a-plane>
+        </a-marker>
+
+        <!-- Kamera -->
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+        // Variabel global
+        let isMarkerDetected = false;
+        let modelContainer = null;
+        let arModel = null;
+        let rotationSpeed = 0;
+        let currentScale = 0.5;
+
+        // Inisialisasi
+        document.addEventListener('DOMContentLoaded', function() {
+            initAR();
+        });
+
+        function initAR() {
+            const marker = document.getElementById('hiro-marker');
+            const loadingScreen = document.getElementById('loading-screen');
+            
+            // Event: Marker ditemukan
+            marker.addEventListener('markerFound', function() {
+                isMarkerDetected = true;
+                updateStatus(true);
+                document.getElementById('marker-guide').classList.add('hidden');
+                showInfoPanel();
+                console.log('✅ Marker ditemukan!');
+            });
+
+            // Event: Marker hilang
+            marker.addEventListener('markerLost', function() {
+                isMarkerDetected = false;
+                updateStatus(false);
+                document.getElementById('marker-guide').classList.remove('hidden');
+                hideInfoPanel();
+                console.log('❌ Marker hilang');
+            });
+
+            // Sembunyikan loading setelah scene siap
+            setTimeout(() => {
+                loadingScreen.classList.add('hidden');
+            }, 3000);
+
+            // Setup model container
+            modelContainer = document.getElementById('model-container');
+            arModel = document.getElementById('ar-model');
+
+            // Auto-rotate model
+            animateModel();
+        }
+
+        function updateStatus(detected) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            
+            if (detected) {
+                dot.classList.add('active');
+                text.textContent = 'Marker Terdeteksi!';
+            } else {
+                dot.classList.remove('active');
+                text.textContent = 'Mencari Marker...';
+            }
+        }
+
+        function showInfoPanel() {
+            const panel = document.getElementById('info-panel');
+            panel.classList.add('show');
+        }
+
+        function hideInfoPanel() {
+            const panel = document.getElementById('info-panel');
+            panel.classList.remove('show');
+        }
+
+        function toggleInfo() {
+            const panel = document.getElementById('info-panel');
+            panel.classList.toggle('show');
+        }
+
+        function animateModel() {
+            if (isMarkerDetected && modelContainer) {
+                // Auto rotation
+                const rotation = modelContainer.getAttribute('rotation');
+                modelContainer.setAttribute('rotation', {
+                    x: rotation.x,
+                    y: rotation.y + 0.5,
+                    z: rotation.z
+                });
+            }
+            requestAnimationFrame(animateModel);
+        }
+
+        function resetModel() {
+            if (modelContainer) {
+                modelContainer.setAttribute('rotation', '0 0 0');
+                modelContainer.setAttribute('scale', '0.5 0.5 0.5');
+                currentScale = 0.5;
+                console.log('🔄 Model direset');
+            }
+        }
+
+        function takeScreenshot() {
+            const flash = document.getElementById('flash');
+            flash.classList.add('active');
+            
+            setTimeout(() => {
+                flash.classList.remove('active');
+            }, 100);
+
+            // Ambil screenshot dari canvas
+            const canvas = document.querySelector('canvas');
+            if (canvas) {
+                const link = document.createElement('a');
+                link.download = 'ar-screenshot-' + Date.now() + '.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                console.log('📷 Screenshot diambil!');
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('Error fullscreen:', err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Touch controls untuk rotasi manual
+        let isDragging = false;
+        let previousTouch = null;
+
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                previousTouch = e.touches[0];
+            }
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (isDragging && previousTouch && isMarkerDetected && modelContainer) {
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - previousTouch.clientX;
+                const deltaY = touch.clientY - previousTouch.clientY;
+                
+                const rotation = modelContainer.getAttribute('rotation');
+                modelContainer.setAttribute('rotation', {
+                    x: rotation.x - deltaY * 0.5,
+                    y: rotation.y + deltaX * 0.5,
+                    z: rotation.z
+                });
+                
+                previousTouch = touch;
+            }
+        });
+
+        document.addEventListener('touchend', function() {
+            isDragging = false;
+            previousTouch = null;
+        });
+
+        // Pinch to zoom
+        let initialDistance = null;
+
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length === 2) {
+                initialDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            if (e.touches.length === 2 && initialDistance && modelContainer) {
+                const currentDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                
+                const scale = (currentDistance / initialDistance) * currentScale;
+                const clampedScale = Math.max(0.1, Math.min(3, scale));
+                
+                modelContainer.setAttribute('scale', `${clampedScale} ${clampedScale} ${clampedScale}`);
+            }
+        });
+
+        document.addEventListener('touchend', function(e) {
+            if (e.touches.length < 2) {
+                if (modelContainer) {
+                    const scale = modelContainer.getAttribute('scale');
+                    currentScale = scale.x;
+                }
+                initialDistance = null;
+            }
+        });
+    </script>
+</body>
+</html>
