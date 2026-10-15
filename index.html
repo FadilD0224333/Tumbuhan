@@ -1,564 +1,317 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Web AR - Visualisasi 3D</title>
-    
-    <!-- AR.js (A-Frame version) -->
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    
-    <!-- Three.js & GLTF Loader -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #000;
-        }
-        
-        /* Loading Screen */
-        #loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease;
-        }
-        
-        #loading-screen.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-        
-        .loader {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(255,255,255,0.1);
-            border-top-color: #00d4ff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .loading-text {
-            color: #fff;
-            margin-top: 20px;
-            font-size: 16px;
-            letter-spacing: 2px;
-        }
-        
-        .loading-subtext {
-            color: #888;
-            margin-top: 8px;
-            font-size: 12px;
-        }
-        
-        /* UI Overlay */
-        #ui-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 100;
-        }
-        
-        /* Header */
-        .ar-header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            padding: 15px 20px;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .ar-title {
-            color: #fff;
-            font-size: 18px;
-            font-weight: 600;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
-        
-        .ar-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(0,0,0,0.5);
-            padding: 6px 12px;
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #ff4444;
-            transition: background 0.3s;
-        }
-        
-        .status-dot.active {
-            background: #00ff88;
-            box-shadow: 0 0 10px #00ff88;
-        }
-        
-        .status-text {
-            color: #fff;
-            font-size: 12px;
-        }
-        
-        /* Marker Guide */
-        .marker-guide {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            opacity: 0.8;
-            transition: opacity 0.5s;
-        }
-        
-        .marker-guide.hidden {
-            opacity: 0;
-        }
-        
-        .marker-frame {
-            width: 200px;
-            height: 200px;
-            border: 2px dashed rgba(255,255,255,0.5);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 15px;
-        }
-        
-        .marker-icon {
-            width: 80px;
-            height: 80px;
-            opacity: 0.5;
-        }
-        
-        .guide-text {
-            color: #fff;
-            font-size: 14px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        }
-        
-        .guide-subtext {
-            color: #aaa;
-            font-size: 12px;
-            margin-top: 5px;
-        }
-        
-        /* Controls */
-        .controls {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 15px;
-            pointer-events: auto;
-        }
-        
-        .control-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            border: none;
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(10px);
-            color: #fff;
-            font-size: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        
-        .control-btn:hover {
-            background: rgba(255,255,255,0.3);
-            transform: scale(1.1);
-        }
-        
-        .control-btn:active {
-            transform: scale(0.95);
-        }
-        
-        /* Info Panel */
-        .info-panel {
-            position: absolute;
-            bottom: 100px;
-            left: 20px;
-            right: 20px;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(15px);
-            border-radius: 15px;
-            padding: 15px 20px;
-            color: #fff;
-            transform: translateY(150%);
-            transition: transform 0.4s ease;
-            pointer-events: auto;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .info-panel.show {
-            transform: translateY(0);
-        }
-        
-        .info-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 5px;
-            color: #00d4ff;
-        }
-        
-        .info-desc {
-            font-size: 13px;
-            color: #ccc;
-            line-height: 1.5;
-        }
-        
-        /* Screenshot Flash */
-        .flash {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #fff;
-            opacity: 0;
-            pointer-events: none;
-            z-index: 1000;
-            transition: opacity 0.1s;
-        }
-        
-        .flash.active {
-            opacity: 1;
-        }
-        
-        /* Responsive */
-        @media (max-width: 480px) {
-            .ar-title {
-                font-size: 14px;
-            }
-            
-            .marker-frame {
-                width: 150px;
-                height: 150px;
-            }
-            
-            .control-btn {
-                width: 45px;
-                height: 45px;
-                font-size: 18px;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f6f7fb">
+  <meta name="description" content="Aplikasi manajemen tugas dan deadline mahasiswa">
+  <title>TaskFlow — Manajemen Tugas Mahasiswa</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
 </head>
 <body>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <a href="#" class="brand" aria-label="TaskFlow beranda">
+        <span class="brand-icon">✓</span>
+        <span>TaskFlow<span class="brand-dot">.</span></span>
+      </a>
 
-    <!-- Loading Screen -->
-    <div id="loading-screen">
-        <div class="loader"></div>
-        <div class="loading-text">MEMUAT APLIKASI AR</div>
-        <div class="loading-subtext">Mempersiapkan kamera dan model 3D...</div>
-    </div>
+      <div class="sidebar-label">MENU UTAMA</div>
+      <nav class="navigation" aria-label="Navigasi utama">
+        <button class="nav-item active" data-view="all">
+          <span>▦</span> Semua Tugas
+          <span class="nav-count" id="allCount">0</span>
+        </button>
+        <button class="nav-item" data-view="today">
+          <span>◷</span> Deadline Hari Ini
+        </button>
+        <button class="nav-item" data-view="upcoming">
+          <span>◫</span> Mendatang
+        </button>
+        <button class="nav-item" data-view="completed">
+          <span>✓</span> Selesai
+        </button>
+      </nav>
 
-    <!-- UI Overlay -->
-    <div id="ui-overlay">
-        <!-- Header -->
-        <div class="ar-header">
-            <div class="ar-title">🔮 Web AR 3D</div>
-            <div class="ar-status">
-                <div class="status-dot" id="status-dot"></div>
-                <span class="status-text" id="status-text">Mencari Marker...</span>
-            </div>
+      <div class="sidebar-label category-heading">KATEGORI TUGAS</div>
+      <nav class="navigation" aria-label="Kategori tugas">
+        <button class="nav-item category-nav" data-category="Individu">
+          <span class="category-dot dot-blue"></span> Individu
+        </button>
+        <button class="nav-item category-nav" data-category="Kelompok">
+          <span class="category-dot dot-purple"></span> Kelompok
+        </button>
+        <button class="nav-item category-nav" data-category="Praktikum">
+          <span class="category-dot dot-green"></span> Praktikum
+        </button>
+        <button class="nav-item category-nav" data-category="Kuis">
+          <span class="category-dot dot-orange"></span> Kuis
+        </button>
+        <button class="nav-item category-nav" data-category="Proyek Akhir">
+          <span class="category-dot dot-pink"></span> Proyek Akhir
+        </button>
+        <button class="nav-item category-nav" data-category="Tugas Rutin">
+          <span class="category-dot dot-yellow"></span> Tugas Rutin
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="tip-card">
+          <span class="tip-icon">✦</span>
+          <strong>Tetap produktif!</strong>
+          <p>Selesaikan satu tugas dalam satu waktu. Progres kecil tetap berarti.</p>
+        </div>
+        <div class="profile">
+          <div class="avatar">M</div>
+          <div class="profile-info">
+            <strong>Mahasiswa</strong>
+            <span>Student workspace</span>
+          </div>
+          <span class="profile-menu">•••</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-button menu-toggle" id="menuToggle"
+            aria-label="Buka navigasi" aria-expanded="false">☰</button>
+          <div>
+            <div class="breadcrumb">Workspace / <span>Manajemen Tugas</span></div>
+            <p class="date-label" id="currentDate">Dashboard mahasiswa</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button notification-button" id="notificationButton"
+            aria-label="Lihat pengingat" title="Lihat tugas mendekati deadline">
+            ♧ <span class="notification-dot" id="notificationDot" hidden></span>
+          </button>
+          <button class="button button-primary desktop-add" id="addTaskTop">
+            <span>＋</span> Tambah Tugas
+          </button>
+        </div>
+      </header>
+
+      <section class="welcome-section">
+        <div>
+          <p class="eyebrow">RUANG PRODUKTIVITASMU</p>
+          <h1 id="pageTitle">Semua Tugas<span class="heading-period">.</span></h1>
+          <p class="welcome-description">Atur prioritas, pantau deadline, dan selesaikan tugasmu.</p>
+        </div>
+        <div class="welcome-decoration" aria-hidden="true">
+          <span class="decoration-circle circle-one"></span>
+          <span class="decoration-circle circle-two"></span>
+          <span class="decoration-check">✓</span>
+        </div>
+      </section>
+
+      <section class="stats-grid" aria-label="Ringkasan tugas">
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon stat-icon-blue">▤</span>
+            <span class="stat-caption">Total tugas</span>
+          </div>
+          <div class="stat-number" id="totalStat">0</div>
+          <p class="stat-foot">Semua tugas tercatat</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon stat-icon-orange">◷</span>
+            <span class="stat-caption">Belum selesai</span>
+          </div>
+          <div class="stat-number" id="pendingStat">0</div>
+          <p class="stat-foot">Perlu ditindaklanjuti</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon stat-icon-green">✓</span>
+            <span class="stat-caption">Selesai</span>
+          </div>
+          <div class="stat-number" id="completedStat">0</div>
+          <p class="stat-foot">Tugas terselesaikan</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon stat-icon-red">⚑</span>
+            <span class="stat-caption">Prioritas tinggi</span>
+          </div>
+          <div class="stat-number" id="highStat">0</div>
+          <p class="stat-foot">Butuh perhatian khusus</p>
+        </article>
+      </section>
+
+      <section class="progress-panel">
+        <div class="progress-copy">
+          <div>
+            <span class="section-kicker">TARGET HARI INI</span>
+            <h2>Terus bergerak maju</h2>
+            <p id="progressText">Belum ada tugas yang diselesaikan.</p>
+          </div>
+          <strong class="progress-percentage" id="progressPercent">0%</strong>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </section>
+
+      <section class="tasks-section" id="tasksSection">
+        <div class="section-header">
+          <div>
+            <h2>Daftar Tugas</h2>
+            <p id="taskListDescription">Kelola semua aktivitas akademikmu.</p>
+          </div>
+          <span class="result-count" id="resultCount">0 tugas</span>
         </div>
 
-        <!-- Marker Guide -->
-        <div class="marker-guide" id="marker-guide">
-            <div class="marker-frame">
-                <svg class="marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <path d="M3 9h18M9 21V9"/>
-                    <circle cx="12" cy="12" r="2"/>
-                </svg>
-            </div>
-            <div class="guide-text">Arahkan kamera ke Marker Hiro</div>
-            <div class="guide-subtext">Marker akan terdeteksi secara otomatis</div>
+        <div class="toolbar">
+          <label class="search-box">
+            <span aria-hidden="true">⌕</span>
+            <input type="search" id="searchInput"
+              placeholder="Cari judul, mata kuliah..." autocomplete="off">
+            <kbd>/</kbd>
+          </label>
+          <div class="toolbar-filters">
+            <select id="categoryFilter" aria-label="Filter kategori">
+              <option value="all">Semua kategori</option>
+              <option>Individu</option>
+              <option>Kelompok</option>
+              <option>Praktikum</option>
+              <option>Kuis</option>
+              <option>Proyek Akhir</option>
+              <option>Tugas Rutin</option>
+            </select>
+            <select id="statusFilter" aria-label="Filter status">
+              <option value="all">Semua status</option>
+              <option value="Belum Dikerjakan">Belum Dikerjakan</option>
+              <option value="Proses">Proses</option>
+              <option value="Selesai">Selesai</option>
+            </select>
+            <select id="priorityFilter" aria-label="Filter prioritas">
+              <option value="all">Semua prioritas</option>
+              <option value="Tinggi">Prioritas tinggi</option>
+              <option value="Sedang">Prioritas sedang</option>
+              <option value="Rendah">Prioritas rendah</option>
+            </select>
+            <select id="sortFilter" aria-label="Urutkan tugas">
+              <option value="deadline">Deadline terdekat</option>
+              <option value="priority">Prioritas tertinggi</option>
+              <option value="newest">Terbaru ditambahkan</option>
+              <option value="oldest">Terlama ditambahkan</option>
+            </select>
+          </div>
         </div>
 
-        <!-- Info Panel -->
-        <div class="info-panel" id="info-panel">
-            <div class="info-title" id="info-title">Model 3D</div>
-            <div class="info-desc" id="info-desc">Objek 3D telah muncul! Anda dapat melihat dari berbagai sudut.</div>
+        <div class="quick-filters" aria-label="Filter cepat">
+          <button class="quick-filter active" data-quick="all">Semua</button>
+          <button class="quick-filter" data-quick="Belum Dikerjakan">Belum dikerjakan</button>
+          <button class="quick-filter" data-quick="Proses">Dalam proses</button>
+          <button class="quick-filter" data-quick="dueSoon">Segera deadline</button>
         </div>
 
-        <!-- Controls -->
-        <div class="controls">
-            <button class="control-btn" onclick="toggleInfo()" title="Info">ℹ️</button>
-            <button class="control-btn" onclick="resetModel()" title="Reset">🔄</button>
-            <button class="control-btn" onclick="takeScreenshot()" title="Screenshot">📷</button>
-            <button class="control-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+        <div class="task-list" id="taskList" aria-live="polite"></div>
+
+        <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-illustration">✦</div>
+          <h3 id="emptyTitle">Belum ada tugas</h3>
+          <p id="emptyDescription">Tambahkan tugas pertamamu agar aktivitas kuliah lebih teratur.</p>
+          <button class="button button-primary" id="emptyAddButton">＋ Buat Tugas Pertama</button>
         </div>
-    </div>
+      </section>
 
-    <!-- Flash Effect -->
-    <div class="flash" id="flash"></div>
+      <footer class="page-footer">
+        <span>TaskFlow <span class="brand-dot">.</span></span>
+        <span>Belajar teratur, selesaikan dengan percaya diri.</span>
+        <span>Data tersimpan di perangkatmu.</span>
+      </footer>
+    </main>
+  </div>
 
-    <!-- AR Scene -->
-    <a-scene 
-        embedded 
-        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-        renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true;"
-        vr-mode-ui="enabled: false">
-        
-        <!-- Assets -->
-        <a-assets>
-            <a-asset-item id="model-glb" src="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF-Binary/Duck.glb"></a-asset-item>
-        </a-assets>
+  <button class="fab" id="fabAdd" aria-label="Tambah tugas baru">＋</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <!-- Marker Hiro -->
-        <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="5" smoothTolerance="0.01" smoothThreshold="2">
-            <!-- Container untuk model 3D -->
-            <a-entity id="model-container" position="0 0 0" rotation="0 0 0" scale="0.5 0.5 0.5">
-                <!-- Model GLB akan dimuat di sini -->
-                <a-entity gltf-model="#model-glb" id="ar-model"></a-entity>
-            </a-entity>
-            
-            <!-- Shadow plane -->
-            <a-plane position="0 0 0" rotation="-90 0 0" width="2" height="2" 
-                     color="#000" opacity="0.3" shadow="receive: true"></a-plane>
-        </a-marker>
+  <dialog class="task-dialog" id="taskDialog" aria-labelledby="dialogTitle">
+    <form id="taskForm">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">WORKSPACE AKADEMIK</p>
+          <h2 id="dialogTitle">Tambah Tugas</h2>
+          <p>Lengkapi detail tugas agar lebih mudah dikelola.</p>
+        </div>
+        <button type="button" class="icon-button close-dialog"
+          id="closeDialog" aria-label="Tutup formulir">×</button>
+      </div>
 
-        <!-- Kamera -->
-        <a-entity camera></a-entity>
-    </a-scene>
+      <input type="hidden" id="taskId">
 
-    <script>
-        // Variabel global
-        let isMarkerDetected = false;
-        let modelContainer = null;
-        let arModel = null;
-        let rotationSpeed = 0;
-        let currentScale = 0.5;
+      <div class="form-grid">
+        <div class="form-field full-width">
+          <label for="taskTitle">Judul tugas <span>*</span></label>
+          <input id="taskTitle" name="title" type="text" maxlength="120"
+            placeholder="Contoh: Laporan praktikum basis data" required>
+          <small class="field-hint">Gunakan judul yang jelas dan mudah dikenali.</small>
+        </div>
 
-        // Inisialisasi
-        document.addEventListener('DOMContentLoaded', function() {
-            initAR();
-        });
+        <div class="form-field">
+          <label for="course">Mata kuliah <span>*</span></label>
+          <input id="course" name="course" type="text" maxlength="100"
+            placeholder="Contoh: Pemrograman Web" required>
+        </div>
 
-        function initAR() {
-            const marker = document.getElementById('hiro-marker');
-            const loadingScreen = document.getElementById('loading-screen');
-            
-            // Event: Marker ditemukan
-            marker.addEventListener('markerFound', function() {
-                isMarkerDetected = true;
-                updateStatus(true);
-                document.getElementById('marker-guide').classList.add('hidden');
-                showInfoPanel();
-                console.log('✅ Marker ditemukan!');
-            });
+        <div class="form-field">
+          <label for="category">Kategori <span>*</span></label>
+          <select id="category" name="category" required>
+            <option value="Individu">Individu</option>
+            <option value="Kelompok">Kelompok</option>
+            <option value="Praktikum">Praktikum</option>
+            <option value="Kuis">Kuis</option>
+            <option value="Proyek Akhir">Proyek Akhir</option>
+            <option value="Tugas Rutin">Tugas Rutin</option>
+          </select>
+        </div>
 
-            // Event: Marker hilang
-            marker.addEventListener('markerLost', function() {
-                isMarkerDetected = false;
-                updateStatus(false);
-                document.getElementById('marker-guide').classList.remove('hidden');
-                hideInfoPanel();
-                console.log('❌ Marker hilang');
-            });
+        <div class="form-field">
+          <label for="priority">Prioritas <span>*</span></label>
+          <select id="priority" name="priority" required>
+            <option value="Tinggi">🔴 Tinggi</option>
+            <option value="Sedang" selected>🟠 Sedang</option>
+            <option value="Rendah">🟢 Rendah</option>
+          </select>
+        </div>
 
-            // Sembunyikan loading setelah scene siap
-            setTimeout(() => {
-                loadingScreen.classList.add('hidden');
-            }, 3000);
+        <div class="form-field">
+          <label for="status">Status pengerjaan <span>*</span></label>
+          <select id="status" name="status" required>
+            <option value="Belum Dikerjakan">Belum Dikerjakan</option>
+            <option value="Proses">Proses</option>
+            <option value="Selesai">Selesai</option>
+          </select>
+        </div>
 
-            // Setup model container
-            modelContainer = document.getElementById('model-container');
-            arModel = document.getElementById('ar-model');
+        <div class="form-field full-width">
+          <label for="deadline">Tanggal dan waktu deadline <span>*</span></label>
+          <input id="deadline" name="deadline" type="datetime-local" required>
+          <small class="field-hint">Deadline lampau diperbolehkan untuk mencatat tugas terlambat.</small>
+        </div>
 
-            // Auto-rotate model
-            animateModel();
-        }
+        <div class="form-field full-width">
+          <label for="description">Catatan tugas</label>
+          <textarea id="description" name="description" rows="3" maxlength="1000"
+            placeholder="Instruksi dosen, pembagian tugas, atau catatan penting..."></textarea>
+        </div>
+      </div>
 
-        function updateStatus(detected) {
-            const dot = document.getElementById('status-dot');
-            const text = document.getElementById('status-text');
-            
-            if (detected) {
-                dot.classList.add('active');
-                text.textContent = 'Marker Terdeteksi!';
-            } else {
-                dot.classList.remove('active');
-                text.textContent = 'Mencari Marker...';
-            }
-        }
+      <div class="dialog-actions">
+        <button type="button" class="button button-secondary" id="cancelDialog">Batal</button>
+        <button type="submit" class="button button-primary" id="saveTaskButton">
+          Simpan Tugas
+        </button>
+      </div>
+    </form>
+  </dialog>
 
-        function showInfoPanel() {
-            const panel = document.getElementById('info-panel');
-            panel.classList.add('show');
-        }
-
-        function hideInfoPanel() {
-            const panel = document.getElementById('info-panel');
-            panel.classList.remove('show');
-        }
-
-        function toggleInfo() {
-            const panel = document.getElementById('info-panel');
-            panel.classList.toggle('show');
-        }
-
-        function animateModel() {
-            if (isMarkerDetected && modelContainer) {
-                // Auto rotation
-                const rotation = modelContainer.getAttribute('rotation');
-                modelContainer.setAttribute('rotation', {
-                    x: rotation.x,
-                    y: rotation.y + 0.5,
-                    z: rotation.z
-                });
-            }
-            requestAnimationFrame(animateModel);
-        }
-
-        function resetModel() {
-            if (modelContainer) {
-                modelContainer.setAttribute('rotation', '0 0 0');
-                modelContainer.setAttribute('scale', '0.5 0.5 0.5');
-                currentScale = 0.5;
-                console.log('🔄 Model direset');
-            }
-        }
-
-        function takeScreenshot() {
-            const flash = document.getElementById('flash');
-            flash.classList.add('active');
-            
-            setTimeout(() => {
-                flash.classList.remove('active');
-            }, 100);
-
-            // Ambil screenshot dari canvas
-            const canvas = document.querySelector('canvas');
-            if (canvas) {
-                const link = document.createElement('a');
-                link.download = 'ar-screenshot-' + Date.now() + '.png';
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                console.log('📷 Screenshot diambil!');
-            }
-        }
-
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log('Error fullscreen:', err);
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        }
-
-        // Touch controls untuk rotasi manual
-        let isDragging = false;
-        let previousTouch = null;
-
-        document.addEventListener('touchstart', function(e) {
-            if (e.touches.length === 1) {
-                isDragging = true;
-                previousTouch = e.touches[0];
-            }
-        });
-
-        document.addEventListener('touchmove', function(e) {
-            if (isDragging && previousTouch && isMarkerDetected && modelContainer) {
-                const touch = e.touches[0];
-                const deltaX = touch.clientX - previousTouch.clientX;
-                const deltaY = touch.clientY - previousTouch.clientY;
-                
-                const rotation = modelContainer.getAttribute('rotation');
-                modelContainer.setAttribute('rotation', {
-                    x: rotation.x - deltaY * 0.5,
-                    y: rotation.y + deltaX * 0.5,
-                    z: rotation.z
-                });
-                
-                previousTouch = touch;
-            }
-        });
-
-        document.addEventListener('touchend', function() {
-            isDragging = false;
-            previousTouch = null;
-        });
-
-        // Pinch to zoom
-        let initialDistance = null;
-
-        document.addEventListener('touchstart', function(e) {
-            if (e.touches.length === 2) {
-                initialDistance = Math.hypot(
-                    e.touches[0].clientX - e.touches[1].clientX,
-                    e.touches[0].clientY - e.touches[1].clientY
-                );
-            }
-        });
-
-        document.addEventListener('touchmove', function(e) {
-            if (e.touches.length === 2 && initialDistance && modelContainer) {
-                const currentDistance = Math.hypot(
-                    e.touches[0].clientX - e.touches[1].clientX,
-                    e.touches[0].clientY - e.touches[1].clientY
-                );
-                
-                const scale = (currentDistance / initialDistance) * currentScale;
-                const clampedScale = Math.max(0.1, Math.min(3, scale));
-                
-                modelContainer.setAttribute('scale', `${clampedScale} ${clampedScale} ${clampedScale}`);
-            }
-        });
-
-        document.addEventListener('touchend', function(e) {
-            if (e.touches.length < 2) {
-                if (modelContainer) {
-                    const scale = modelContainer.getAttribute('scale');
-                    currentScale = scale.x;
-                }
-                initialDistance = null;
-            }
-        });
-    </script>
+  <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>
